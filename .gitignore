@@ -1,0 +1,55 @@
+# Simulation outputs
+*.vcd
+*.wdb
+*.fsdb
+fsdb/
+simv
+simv.daidir
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Vivado/Quartus generated files
+.Xil/
+.cache/
+.ip_user_files/
+*.jou
+*.log
+*.pb
+*.rpt
+*.runs/
+*.sim/
+*.srcs/
+*.ip_user_files/
+hs_err_*.log
+
+# Quartus II generated files
+db/
+incremental_db/
+output_files/
+simulation/
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Temporary files
+*.tmp
+*.bak
