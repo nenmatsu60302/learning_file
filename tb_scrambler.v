@@ -17,6 +17,7 @@ module tb_scarmbler_64b66b;
     reg [WIDTH_DATA-1:0] data_in;
     reg [WIDTH_CONT-1:0] control_in;
     wire [WIDTH_DOUT-1:0] data_out;
+    reg scrambler_enable;
 
     // DUT
     scarmbler_64b66b #(
@@ -28,6 +29,7 @@ module tb_scarmbler_64b66b;
         .rst_n(rst_n),
         .data_in(data_in),
         .control_in(control_in),
+        .scrambler_enable(scrambler_enable), // Scrambler always enabled for testing
         .data_out(data_out)
     );
 
@@ -47,22 +49,24 @@ module tb_scarmbler_64b66b;
         rst_n = 0;
         data_in = 32'h0000_0000;
         control_in = 4'h0;
+        scrambler_enable = 1'b0;
         #20;
         rst_n = 1;
 
         // apply a sequence of test vectors
-        @(negedge clk); data_in <= 32'h0; control_in <= 4'h0;
-        @(negedge clk); data_in <= 32'h0; control_in <= 4'h0;
+        @(negedge clk); data_in <= 32'h0; control_in <= 4'h0; scrambler_enable <= 1'b0;
+        @(negedge clk); data_in <= 32'h0; control_in <= 4'h0; scrambler_enable <= 1'b0;
         repeat (8) begin
             @(negedge clk);
             data_in <= $random;
             control_in <= $random & {{(WIDTH_CONT-1){1'b0}},1'b1};
+            scrambler_enable <= 1'b1;
         end
 
         // toggles with some control symbols
-        @(negedge clk); data_in <= 32'hA5A5A5A5; control_in <= 4'h0;
-        @(negedge clk); data_in <= 32'h5A5A5A5A; control_in <= 4'hF;
-        @(negedge clk); data_in <= 32'hFFFF0000; control_in <= 4'h1;
+        @(negedge clk); data_in <= 32'hA5A5A5A5; control_in <= 4'h0; scrambler_enable <= 1'b1;
+        @(negedge clk); data_in <= 32'h5A5A5A5A; control_in <= 4'hF; scrambler_enable <= 1'b1;
+        @(negedge clk); data_in <= 32'hFFFF0000; control_in <= 4'h1; scrambler_enable <= 1'b1;
 
         #100;
         $display("Simulation finished");

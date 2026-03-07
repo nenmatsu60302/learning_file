@@ -15,13 +15,21 @@ module scarmbler_64b66b #(
     input  wire rst_n,
     input  wire [WIDTH_DATA-1:0] data_in,     // 32bit data input
     input  wire [WIDTH_CONT-1:0] control_in,  // 4bit control input (e.g., for indicating data vs control symbols)
+    input  wire scrambler_enable, 
     output wire [WIDTH_DOUT-1:0] data_out
 );
+
+    parameter IDLE = 2'b00,
+              LOAD = 2'b01,
+              SCRAMBLE = 2'b10,
+              OUTPUT = 2'b11;
+
     wire [63:0] scrambler_reg; // 64bit scrambler register
     wire [1:0] sync_header; // 2bit sync header for 64b/66b encoding    
-    reg lfsr_enable; // LFSR enable signal, 可以根據需要使用這個信號來控制何時更新LFSR狀態
+    reg [1:0] lfsr_cnt; // LFSR enable signal, 可以根據需要使用這個信號來控制何時更新LFSR狀態
     reg [63:0] data_in_64b;
     reg [7:0] cont_in_8b;
+    wire lfsr_enable;
 
     assign sync_header = (|control_in)? 2'b01 : 2'b10; // control_in任一為1則sync header為01(表示control symbol), 否則為10(表示data symbol)
     assign data_out = {sync_header, scrambler_reg}; // 64b/66b 編碼: sync header + scrambled data
@@ -34,36 +42,53 @@ module scarmbler_64b66b #(
             // reset
             data_in_64b <= 64'h0; // reset data input to scrambler
             cont_in_8b <= 8'h0; // reset control input to scramb
-        end else begin
-            // 可以在這裡根據需要添加其他條件來控制何時更新scrambler_reg，例如根據control_in的值來決定是否更新scrambler_reg
+        end else if (scrambler_enable) begin
             data_in_64b <= {data_in_64b[31:0], data_in}; // 將32bit的data_in複製成64bit輸入給scrambler
             cont_in_8b <= {cont_in_8b[3:0], control_in}; // 將4bit的control_in複製成8bit輸入給gearbox
         end
+        else begin
+            data_in_64b <= data_in_64b; // 保持原值
+            cont_in_8b <= cont_in_8b; // 保持原值
+        end
     end
 
-    // scramble enable
-    always@(posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            // reset
-            lfsr_enable <= 0; // reset lfsr_enable signal
-        end else if ((lfsr_enable == 1)) 
-            lfsr_enable <= 0; // Reset lfsr_enable signal when max
-        else
-            lfsr_enable <= lfsr_enable + 1'b1; // Enable scrambling after reset, 可以根據需要修改這個條件來控制何時啟用scrambling
+            lfsr_cnt <= 0; // reset LFSR enable signal
+        end else begin
+            lfsr_cnt <= lfsr_cnt + 2'b1; // 每次scrambler_enable為1時，增加LFSR enable信號的值，這樣可以控制LFSR在每個時鐘週期更新狀態
+        end
     end
 
-    // state machine for: 1. 
-    always@(posedge clk or negedge rst_n) begin
+    
+    reg [1:0] state;
+    reg [1:0] nxt_state;
+    // state machine for controlling scrambler operation, 可以根據需要添加更多的狀態來控制scrambler的行為，例如根據control_in的值來決定是否更新scrambler_reg
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            // reset
-            lfsr_enable <= 0; // reset lfsr_enable signal
-        end else if ((lfsr_enable == 1)) 
-            lfsr_enable <= 0; // Reset lfsr_enable signal when max
-        else
-            lfsr_enable <= lfsr_enable + 1'b1; // Enable scrambling after reset, 可以根據需要修改這個條件來控制何時啟用scrambling
+            state <= 2'b00; // reset
+        end else begin
+            state <= nxt_state; // update state
+        end
+    end
+    
+    // nex_state logic for state machine, 可以根據需要添加更多的條件來控制狀態轉移，例如根據control_in的值來決定是否更新scrambler_reg
+    always @(*) begin
+        case (state)
+            IDLE: begin
+                nxt_state = scrambler_enable ? LOAD : IDLE; // transition to LOAD state when scrambler_enable is high
+            end
+            LOAD: begin
+                nxt_state = SCRAMBLE; // transition to LOAD state when scrambler_enable is high
+            end
+            SCRAMBLE: begin
+                nxt_state = scrambler_enable? LOAD: IDLE; // transition to LOAD state when scrambler_enable is high
+            end
+            default: nxt_state = IDLE; // default case to handle unexpected states, transition back to state 0    
+        endcase
     end
 
-    // Search control bytes in data_in, 
+    assign lfsr_enable = (state == SCRAMBLE) ? 1'b1 : 1'b0; // LFSR enable signal is high when in SCRAMBLE state
     
 
     // Instantiate the scrambler module
